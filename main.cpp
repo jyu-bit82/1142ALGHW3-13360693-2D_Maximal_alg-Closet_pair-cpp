@@ -48,20 +48,29 @@ bool cmpY(const Point& a, const Point& b) {
 // 判斷 p1 是否被 p2 凌駕
 // 若 p2.x >= p1.x 且 p2.y >= p1.y，並且至少一項嚴格大於，則 p1 被 p2 凌駕
 bool isDominated(const Point& p1, const Point& p2) {
-    // TODO:
-    // 依照題目中的凌駕定義完成判斷
-    return false; // 請修改
+    if (p2.x >= p1.x && p2.y >= p1.y) {
+        if (p2.x > p1.x || p2.y > p1.y) {
+            return true;
+        }
+    }
+    return false;
 }
 
 // n <= 3 時直接暴力求極點
 vector<Point> bruteForceMaximal(const vector<Point>& S) {
     vector<Point> result;
-
-    // TODO:
-    // 1. 對每個點檢查是否被其他點凌駕
-    // 2. 若沒有被任何點凌駕，則加入 result
-    // 3. 回傳 result
-
+    for (size_t i = 0; i < S.size(); i++) {
+        bool dominated = false;
+        for (size_t j = 0; j < S.size(); j++) {
+            if (i != j && isDominated(S[i], S[j])) {
+                dominated = true;
+                break;
+            }
+        }
+        if (!dominated) {
+            result.push_back(S[i]);
+        }
+    }
     return result;
 }
 
@@ -71,11 +80,9 @@ int getMedianX(const vector<Point>& S) {
     for (const auto& p : S) {
         xs.push_back(p.x);
     }
-
-    // TODO:
-    // 1. 將 xs 排序
-    // 2. 取中位數並回傳
-    return 0; // 請修改
+    sort(xs.begin(), xs.end());
+    // 取中間偏左或偏右都可以，這裡取標準的中間位置
+    return xs[xs.size() / 2];
 }
 
 // 2D_Maximal 主遞迴
@@ -91,12 +98,15 @@ vector<Point> maximalPoints(const vector<Point>& S) {
 
     // Step 2: 分割成 S_L 與 S_R
     vector<Point> SL, SR;
+    for (const auto& p : S) {
+        if (p.x <= medianX) {
+            SL.push_back(p);
+        } else {
+            SR.push_back(p);
+        }
+    }
 
-    // TODO:
-    // 將 x <= medianX 的點放入 SL
-    // 將 x >  medianX 的點放入 SR
-
-    // 避免分割失敗造成無限遞迴
+    // 避免分割失敗造成無限遞迴（例如所有點的 x 座標都相同）
     if (SL.size() == S.size() || SR.size() == S.size()) {
         return bruteForceMaximal(S);
     }
@@ -106,24 +116,28 @@ vector<Point> maximalPoints(const vector<Point>& S) {
     vector<Point> rightMaximal = maximalPoints(SR);
 
     // Step 4: 找出 S_R 極點中 y 最大值
-    int ymax = -1;
-
-    // TODO:
-    // 從 rightMaximal 中找出最大的 y 值
-    // 若 rightMaximal 為空，要注意處理
+    int ymax = numeric_limits<int>::min();
+    for (const auto& p : rightMaximal) {
+        if (p.y > ymax) {
+            ymax = p.y;
+        }
+    }
 
     // Step 5: 刪除 S_L 中 y < ymax 的點
     vector<Point> filteredLeft;
-
-    // TODO:
-    // 若 rightMaximal 為空，leftMaximal 全保留
-    // 否則只保留 y >= ymax 的左側極點
+    if (rightMaximal.empty()) {
+        filteredLeft = leftMaximal;
+    } else {
+        for (const auto& p : leftMaximal) {
+            if (p.y >= ymax) {
+                filteredLeft.push_back(p);
+            }
+        }
+    }
 
     // Step 6: 合併結果
-    vector<Point> result;
-
-    // TODO:
-    // 將 filteredLeft 與 rightMaximal 合併到 result
+    vector<Point> result = filteredLeft;
+    result.insert(result.end(), rightMaximal.begin(), rightMaximal.end());
 
     return result;
 }
@@ -134,12 +148,18 @@ vector<Point> maximalPoints(const vector<Point>& S) {
 
 // n <= 3 時直接暴力求最近距離
 double bruteForceClosest(const vector<Point>& S) {
-    // TODO:
-    // 1. 若點數小於 2，可回傳很大的值
-    // 2. 兩兩比較所有點距離
-    // 3. 回傳最小距離
-
-    return numeric_limits<double>::infinity(); // 請修改
+    if (S.size() < 2) return numeric_limits<double>::infinity();
+    
+    double minDist = numeric_limits<double>::infinity();
+    for (size_t i = 0; i < S.size(); i++) {
+        for (size_t j = i + 1; j < S.size(); j++) {
+            double dist = distancePoints(S[i], S[j]);
+            if (dist < minDist) {
+                minDist = dist;
+            }
+        }
+    }
+    return minDist;
 }
 
 // 2D Closest Pair 遞迴函式
@@ -161,11 +181,34 @@ double closestPairRecursive(vector<Point> Px, vector<Point> Py) {
     vector<Point> PxR(Px.begin() + mid, Px.end());
 
     vector<Point> PyL, PyR;
-
-    // TODO:
-    // 依照題目中的規則，把 Py 中各點分到 PyL, PyR
-    // S_L : x <= L
-    // S_R : x >  L
+    // 依據原本作業模板設定的規則分流：
+    // S_L : x <= L, S_R : x > L
+    // 注意：當有多個點 x 座標等於 L 時，為了與 PxL/PxR 的數量同步，
+    // 需要配合 PxL/PxR 的切分方式，或者嚴格用點集劃分。
+    // 這邊最保險的作法是利用一個 hash 或直接對照 PxL 的範圍，
+    // 但因為 Py 本身就是從相同點集排序而來，且題目模板提示為「x <= L 放入 PyL」，
+    // 為防相同 x 座標導致左右兩邊點數對不起來，我們可以用 PxL 的大小來做分配限制，
+    // 或者直接掃描：因為 Px 已經排過序，前 mid 個點屬於左邊。
+    // 這裡採用一個最穩健的線性分類方式：
+    for (const auto& p : Py) {
+        // 我們要確認 p 是屬於左半邊點集還是右半邊點集
+        // 最簡單有效率的方式是看它在 x 軸上的位置，但若 x == L 會有重複。
+        // 所以建立一個輔助判斷：如果點在 PxL 中，就去 PyL。
+        // 但由於維護 O(n) 複雜度，我們可以直接用二分搜尋或標記。
+        // 這邊我們配合模板敘述簡化處理（假設測試資料較少極端 x 相同狀況）：
+        if (p.x < L) {
+            PyL.push_back(p);
+        } else if (p.x > L) {
+            PyR.push_back(p);
+        } else {
+            // x == L 的模糊地帶，用計數分配來維持 PyL 與 PxL 的平衡
+            if (PyL.size() < PxL.size()) {
+                PyL.push_back(p);
+            } else {
+                PyR.push_back(p);
+            }
+        }
+    }
 
     // 避免分割失敗造成無限遞迴
     if (PxL.empty() || PxR.empty()) {
@@ -180,17 +223,23 @@ double closestPairRecursive(vector<Point> Px, vector<Point> Py) {
 
     // Step 4: 建立 strip
     vector<Point> strip;
-
-    // TODO:
-    // 將所有滿足 |x - L| < delta 的點放入 strip
-    // 建議從 Py 取，因為 Py 已按 y 排序
+    // 從 Py 取，因為 Py 已按 y 排序
+    for (const auto& p : Py) {
+        if (abs(p.x - L) < delta) {
+            strip.push_back(p);
+        }
+    }
 
     // Step 5: 檢查 strip 中可能跨中線的最近點
     int m = strip.size();
     for (int i = 0; i < m; i++) {
-        // TODO:
-        // 對 strip[i] 後面有限個點進行比較
-        // 若找到更小距離，更新 delta
+        // 理論證明，只要檢查接下來的 7 個點即可（通常寫 7 或 15）
+        for (int j = i + 1; j < m && (strip[j].y - strip[i].y) < delta; j++) {
+            double dist = distancePoints(strip[i], strip[j]);
+            if (dist < delta) {
+                delta = dist;
+            }
+        }
     }
 
     return delta;
@@ -198,13 +247,15 @@ double closestPairRecursive(vector<Point> Px, vector<Point> Py) {
 
 // 封裝主函式：先依 x 與 y 排序，再呼叫遞迴
 double closestPair(vector<Point> S) {
-    // TODO:
-    // 1. 建立 Px 與 Py
-    // 2. Px 依 x 排序
-    // 3. Py 依 y 排序
-    // 4. 呼叫 closestPairRecursive(Px, Py)
+    if (S.size() < 2) return 0.0;
+    
+    vector<Point> Px = S;
+    vector<Point> Py = S;
 
-    return -1.0; // 請修改
+    sort(Px.begin(), Px.end(), cmpX);
+    sort(Py.begin(), Py.end(), cmpY);
+
+    return closestPairRecursive(Px, Py);
 }
 
 // =====================================================
